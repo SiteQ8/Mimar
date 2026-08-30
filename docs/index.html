@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mimar: a security architecture tool</title>
+<meta name="description" content="Describe your system as trust zones, components, and data flows, and see the diagram, the STRIDE threats, and the weaknesses in the architecture. Nothing is uploaded.">
+<link rel="stylesheet" href="app/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="3" y="20" width="26" height="9" rx="2" fill="#5a86ff" opacity="0.35"/>
+        <rect x="7" y="12" width="18" height="8" rx="2" fill="#3fd6c8" opacity="0.5"/>
+        <rect x="11" y="4" width="10" height="8" rx="2" fill="#a78bff" opacity="0.7"/>
+        <rect x="3" y="20" width="26" height="9" rx="2" fill="none" stroke="#5a86ff"/>
+        <rect x="7" y="12" width="18" height="8" rx="2" fill="none" stroke="#3fd6c8"/>
+        <rect x="11" y="4" width="10" height="8" rx="2" fill="none" stroke="#a78bff"/>
+      </svg>
+      <h1>Mimar</h1><span class="ver" id="ver"></span>
+    </div>
+    <a class="btn" href="https://github.com/SiteQ8/Mimar" style="text-decoration:none">GitHub</a>
+  </div>
+  <p class="tag">A security architecture tool. Describe your system as trust zones, components, and the data flows between them, and Mimar draws the diagram and finds the threats: the STRIDE threat register, and the weaknesses in the shape of the architecture, each with the control that fixes it. Edit the model on the left and watch it update. Nothing you type leaves your browser.</p>
+
+  <div class="cols">
+    <div class="card editor">
+      <h2>The model</h2>
+      <label>Describe zones, components, and flows. Try breaking or fixing it and watch the analysis change.</label>
+      <textarea id="model" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="btn small" id="ex-shop">Online shop</button>
+        <button class="btn small" id="ex-hardened">Hardened variant</button>
+        <button class="btn small" id="ex-flat">Flat design</button>
+      </div>
+      <div class="err" id="err" style="display:none"></div>
+    </div>
+    <div class="card">
+      <h2>Threat model</h2>
+      <div id="out"></div>
+    </div>
+  </div>
+
+  <p class="foot">Mimar means architect. STRIDE threat modeling with zero dependencies, in the browser and as a command line tool. <a href="https://github.com/SiteQ8/Mimar">Source on GitHub</a>.</p>
+</div>
+<script src="app/mimar.js"></script>
+</body>
+</html>
