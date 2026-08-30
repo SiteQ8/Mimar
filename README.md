@@ -2,57 +2,63 @@
 
 **A security architecture tool.** Describe your system as trust zones, components, and the data flows between them, and Mimar draws the diagram and finds the threats: a STRIDE threat register for every component and flow, and the weaknesses in the shape of the architecture itself, each with the control that fixes it. It runs at design time, before anything is built, and it has zero dependencies.
 
-Mimar means architect in Arabic. You describe the building; it inspects the plan.
+Mimar is the Arabic word for architect.
 
-**[Try it in your browser](https://siteq8.github.io/Mimar/)** with nothing to install. Edit the model and watch the diagram and the analysis update as you type. Nothing you enter leaves the page.
+### Try it in your browser
 
-![Mimar analyzing a model in the browser](docs/screenshot.png)
+**[siteq8.github.io/Mimar](https://siteq8.github.io/Mimar/)**
+
+Edit the model on the left and watch the diagram, the score, the weaknesses, and the threat register update as you type. Nothing you enter leaves your browser.
+
+![Mimar](docs/screenshot.png)
 
 ## The idea
 
-Most security problems in a system are decided before a line of code is written, in how the pieces are arranged. A database that the public internet can reach. A login that crosses the network in the clear. An admin path wired straight to the data with nothing checking it. These are architecture decisions, and the cheapest time to catch them is while the architecture is still a text file.
+Most security problems in a system are decided at design time. A database that the public tier can reach directly. An admin path that skips the application logic. A flow that crosses a trust boundary in the clear. You cannot patch your way out of a weak structure, and by the time the code exists the structure is expensive to change.
 
-Mimar takes that text file. You write a short description of the system in a small language, and Mimar gives you three things:
+Threat modeling is the practice of catching these before they are built, but it is often a whiteboard session that fades. Mimar turns the model into a short text file you can keep in the repository, review in a pull request, and run. Give it the architecture and it gives you back three things.
 
-1. **A diagram.** Trust zones as layered bands, components as shapes, and the data flows as arrows. Flows that touch a weakness are drawn in red, and unencrypted flows are dashed, so the risky parts stand out at a glance.
-2. **A STRIDE threat register.** For every component and every flow, the threats that apply to it, Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, and Elevation of privilege, each with a first mitigation.
-3. **Architecture weaknesses.** The higher value part: checks on the shape of the design, a sensitive store an untrusted zone can reach, cleartext crossing a trust boundary, an external entity with a direct line to the data, the most trusted zone one hop from hostile ground, a flat design with no segmentation. Each names the parts involved and the control that would fix it, and the whole model scores to a grade.
+**The diagram.** Trust zones as bands ordered by how trusted they are, components placed inside them, and the data flows drawn as arrows. A flow that is part of a weakness is drawn in red, and a flow that is not encrypted is dashed, so the weak paths stand out on sight.
 
-## Describe a system
+**The STRIDE threat register.** For every component and every flow, the threats that apply to it, using the standard STRIDE mapping, each with a concrete first mitigation. Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, and Elevation of privilege.
 
-The model is a short text file. Each line is one statement, and it reads close to plain notes.
+**The architecture weaknesses.** This is the part a plain checklist misses. Mimar looks at how the parts are arranged and flags the mistakes that matter most, each with the exact control that fixes it and a grade for the whole design.
+
+## The model language
+
+A model is a short text file. Every line is one statement, and anything after a hash is a comment.
 
 ```
 name=Online shop
 
 zone internet trust=0 label="Public internet"
-zone dmz      trust=3 label="Public facing"
-zone app      trust=6 label="Application"
-zone data     trust=9 label="Restricted data"
+zone dmz trust=3 label="Public facing"
+zone app trust=6 label="Application"
+zone data trust=9 label="Restricted data"
 
-entity  customer in internet label="Customer"
-process web      in dmz      label="Web frontend"
-process api      in app      label="Order API"
-store   orders   in data     sensitive label="Customer orders"
+entity customer in internet label="Customer"
+entity admin in internet label="Administrator"
+process web in dmz label="Web frontend"
+process api in app label="Order API"
+store orders in data sensitive label="Customer orders"
 
-flow customer -> web    proto=HTTPS encrypted authenticated label="Browse and buy"
-flow web      -> api    proto=HTTP  label="Order requests"
-flow api      -> orders proto=SQL   encrypted label="Read and write orders"
+flow customer -> web proto=HTTPS encrypted authenticated label="Browse and buy"
+flow web -> api proto=HTTP label="Order requests"
+flow api -> orders proto=SQL encrypted label="Read and write orders"
+flow admin -> orders proto=SQL label="Direct admin queries"
 ```
 
-Zones have a **trust** level, where 0 is fully untrusted, such as the public internet, and higher numbers are more trusted. Components are an **entity** (a user or an outside system), a **process** (a service that does something), or a **store** (a place data rests, which you can mark **sensitive**). Flows are directed and can be marked **encrypted** and **authenticated**. Anything after a `#` is a comment.
+A **zone** is a trust boundary with a trust level, where zero is fully untrusted ground and higher numbers are more trusted. A component is an **entity** (an external actor such as a user or a third party), a **process** (a service that does work), or a **store** (where data rests, marked `sensitive` when it holds data that matters). A **flow** is a directed connection that carries data, with optional `encrypted` and `authenticated` flags and a protocol.
 
-## See the weaknesses
+That is the whole language. It reads close to plain notes on purpose.
 
-Run it over a model:
+## What a weak design looks like
 
-```
-mimar analyze shop.mimar
-```
-
-The shop above has an admin flow that talks straight to the orders store over an unencrypted connection from an untrusted zone. Mimar scores it an F and explains why, most serious first:
+The model above has a problem hiding in the last line. The administrator, sitting on the public internet, queries the sensitive orders store directly, in the clear, skipping every tier in between. Run it and Mimar says so:
 
 ```
+$ mimar analyze examples/shop.mimar
+
 Mimar threat model: Online shop
   score 0/100  grade F
   4 zones, 6 components, 5 flows
@@ -65,15 +71,27 @@ Architecture weaknesses  (most serious first)
       reaches the data.
       control: Place the store behind an application tier that mediates every
       access, and never expose it to the untrusted zone.
+  [HIGH] External entity has direct data store access
+      ...
   [HIGH] Cleartext flow crosses a trust boundary
       ...
 ```
 
-The repository includes `examples/shop.mimar` and a hardened variant, `examples/shop-hardened.mimar`, where the admin goes through a portal and every flow is encrypted and authenticated. The hardened version scores 100 and an A. Running both, side by side, is the fastest way to see what the tool rewards.
+The hardened variant in `examples/shop-hardened.mimar` routes the admin through an admin portal in the application tier and encrypts and authenticates every flow. Same system, sound structure, and it scores a hundred with no weaknesses. Running the two side by side is the quickest way to see what Mimar is looking for.
+
+## The weaknesses it checks
+
+Mimar flags a sensitive store an untrusted zone can reach, an external entity wired straight to a data store, the most trusted zone sitting one hop from untrusted ground, cleartext crossing a trust boundary, an unauthenticated flow entering a more trusted zone, a sensitive data flow left unencrypted, a sensitive store placed in a low trust zone, a flat design with everything in one zone and no segmentation, and an external entity sharing a zone with a data store. Each finding names the parts involved and the control that resolves it.
 
 ## Install and use
 
-Mimar is pure Python with no dependencies. Clone the repository and run it in place:
+Mimar needs Python 3.9 or newer and nothing else.
+
+```
+pip install https://github.com/SiteQ8/Mimar/releases/download/v0.1.0/mimar-0.1.0-py3-none-any.whl
+```
+
+Or clone and run it in place:
 
 ```
 git clone https://github.com/SiteQ8/Mimar.git
@@ -81,45 +99,23 @@ cd Mimar
 python3 -m mimar analyze examples/shop.mimar
 ```
 
-Or install it so the `mimar` command is on your path:
-
-```
-pip install .
-```
-
 Commands:
 
 ```
-mimar analyze <file>            analyze a model and print its threat model
-mimar analyze <file> --format markdown --output report.md
-mimar analyze <file> --format html --output report.html
-mimar analyze <file> --format json     machine readable output
-mimar example                   print an example model to start from
-mimar serve                     open the browser version locally
+mimar analyze <file>              analyze a model and print its threat model
+mimar analyze <file> --format json|markdown|html --output report.html
+mimar example                     print a model to start from
+mimar serve                       open the browser version locally
 mimar version
 ```
 
-`analyze` returns a non zero exit code when it finds anything critical or high, so it fits in a pipeline or a pre commit check.
+`analyze` exits non zero when it finds a critical or high weakness, so it drops into a pipeline or a pre commit check without extra wiring.
 
-Reports come in **text** (with color in a terminal), **markdown** for a pull request or a wiki, **HTML** for a self contained page you can share, and **JSON** for feeding another tool.
+## Honest scope
 
-## The same engine in the browser
+Mimar is a thinking aid, not an oracle. STRIDE is a structured checklist, thorough for what it covers but not a proof that you have found every threat. The architecture checks are opinionated heuristics that encode common and serious design mistakes; they will not catch a subtle logic flaw, and on an unusual design they may flag something you have accepted on purpose. The model is only as good as the picture you give it, and it reasons about the design you describe, not the running system. Use it to find the obvious structural problems early and cheaply, and to keep a threat model that lives in the repository next to the thing it describes. It does not replace a careful review by people who know the system.
 
-The browser version at [siteq8.github.io/Mimar](https://siteq8.github.io/Mimar/) runs the same analysis, ported to JavaScript and checked to produce the identical result on the example models. It draws the live diagram and updates as you edit. It is a single page with no build step and no network calls, so you can read every line, and it works offline once loaded.
-
-## What it does and does not do
-
-Mimar is meant to be honest about its limits.
-
-- **It models what you describe.** The analysis is only as good as the model. If you leave out a flow or misjudge a trust level, Mimar cannot know. The value is in making the architecture explicit enough to reason about, and in catching the obvious mistakes reliably.
-- **STRIDE is a checklist, not a proof.** The threat register is the standard STRIDE mapping applied to each element. It is a thorough prompt for what to consider, not an exhaustive or guaranteed list of every threat to your system.
-- **The weakness checks are opinionated heuristics.** They encode common architecture mistakes and sensible defaults. They will not catch every design flaw, and on an unusual but sound design they may flag something that is fine in context. Read them as an informed second opinion, not a verdict.
-- **It is design time, not runtime.** Mimar reasons about a description of a system. It does not scan a network, read your code, or test a running service. It is a companion to those tools, aimed at the stage before them.
-- **It is defensive.** Every output points at a control or a better design. There is nothing here that helps attack a system.
-
-## Why zero dependencies
-
-The whole tool is standard library Python and one page of vanilla JavaScript. You can read all of it, it will still run in years, and a security tool that pulls in a long chain of packages is asking you to trust all of them. This one asks you to trust what you can see.
+Mimar is defensive throughout. It helps you design and inspect an architecture. It does not attack anything.
 
 ## License
 
