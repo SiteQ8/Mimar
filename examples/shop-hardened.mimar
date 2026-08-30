@@ -1,0 +1,21 @@
+name=Online shop, hardened
+
+zone internet trust=0 label="Public internet"
+zone dmz trust=3 label="Public facing"
+zone app trust=6 label="Application"
+zone data trust=9 label="Restricted data"
+
+entity customer in internet label="Customer"
+entity admin in internet label="Administrator"
+process web in dmz label="Web frontend"
+process api in app label="Order API"
+process adminportal in app label="Admin portal"
+store orders in data sensitive label="Customer orders"
+store cache in app label="Session cache"
+
+flow customer -> web proto=HTTPS encrypted authenticated label="Browse and buy"
+flow web -> api proto=HTTPS encrypted authenticated label="Order requests"
+flow api -> orders proto=SQL encrypted authenticated label="Read and write orders"
+flow api -> cache proto=redis encrypted label="Session lookups"
+flow admin -> adminportal proto=HTTPS encrypted authenticated label="Admin sign in"
+flow adminportal -> orders proto=SQL encrypted authenticated label="Mediated admin queries"
